@@ -48,15 +48,30 @@
         currdeg = selectedSize * carouselStepDeg;
     }
     
-    function handleSizeSelection(d: number): void {
-        selectedSize = d;
+    // Fixed: Enhanced handleSizeSelection to prevent event propagation
+    function handleSizeSelection(d: number, event: Event): void {
+        if (event) {
+            event.stopPropagation(); // Prevent event bubbling
+        }
+        console.log('Size selected:', d, sizes[d]); // Debug log
+        selectedSize = d; // Update the state
+        updateCarouselValues(); // Ensure carousel updates immediately
+    }
+    
+    // Fixed: Enhanced forward click handler to stop propagation and log
+    function handleForwardClick(event: Event): void {
+        if (event) {
+            event.stopPropagation();
+        }
+        console.log("Moving forward with size:", sizes[selectedSize]);
+        moveForward(); // Call the function passed as a prop
     }
     
     // Keyboard event handler for accessibility
-    function handleKeyDown(event: KeyboardEvent, action: () => void): void {
+    function handleKeyDown(event: KeyboardEvent, action: (e: Event) => void): void {
         if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            action();
+            action(event);
         }
     }
 </script>
@@ -74,14 +89,17 @@
                 style="transform:translateZ(-{translationFactor * item3dtranslation}px) rotateY(-{currdeg}deg);"
             >
                 {#each sizes as size, d}
+                    <!-- Fixed: Updated button with explicit event handling -->
                     <button 
-                        onclick={() => handleSizeSelection(d)}
-                        onkeydown={e => handleKeyDown(e, () => handleSizeSelection(d))}
-                        class="btn {selectedSize === d ? 'bg-green-600 text-white' : 'bg-white/70 text-gray-700'} 
+                        onclick={(event) => handleSizeSelection(d, event)}
+                        onkeydown={(event) => handleKeyDown(event, (e) => handleSizeSelection(d, e))}
+                        class="btn size-button {selectedSize === d ? 'bg-green-600 text-white' : 'bg-white/70 text-gray-700'} 
                              w-full h-full absolute opacity-80 flex items-center justify-center border border-gray-300 
                              font-bold text-2xl rounded-lg shadow-md"
                         style="transform: rotateY({d * carouselStepDeg}deg) translateZ({(selectedSize === d ? translationFactor : 1) * item3dtranslation}px); 
                                scale: 0.85;"
+                        aria-pressed={selectedSize === d}
+                        tabindex="0"
                     >
                         {size}
                     </button>
@@ -100,23 +118,33 @@
                 min="0" 
                 max={carousel3dLen - 1} 
                 step="1" 
-                bind:value={selectedSize} 
+                value={selectedSize}
+                oninput={(e) => handleSizeSelection(parseInt(e.currentTarget.value), e)}
+                aria-label="Size selection slider"
             />
         </div>
         
-        <!-- Carousel Labels -->
+        <!-- Carousel Labels with click functionality -->
         <div class="flex justify-between w-full px-1 mb-8 text-sm">
             {#each sizes as size, d}
-                <span class={selectedSize === d ? 'font-bold text-amber-800' : 'text-gray-600'}>{size}</span>
+                <button
+                    onclick={(event) => handleSizeSelection(d, event)} 
+                    class={`${selectedSize === d ? 'font-bold text-amber-800' : 'text-gray-600'} px-2 py-1 rounded hover:bg-amber-100 transition-colors`}
+                    aria-pressed={selectedSize === d}
+                >
+                    {size}
+                </button>
             {/each}
         </div>
         
         <!-- Forward Button (Centered) -->
         <div class="flex justify-center w-full">
+            <!-- Fixed: Updated button with explicit event handling -->
             <button 
                 class="bg-amber-500 hover:bg-amber-600 text-white py-3 px-8 rounded-full flex items-center space-x-2 transition-colors"
-                onclick={moveForward}
-                onkeydown={e => handleKeyDown(e, moveForward)}
+                onclick={(event) => handleForwardClick(event)}
+                onkeydown={(event) => handleKeyDown(event, handleForwardClick)}
+                aria-label="Continue with selected size"
             >
                 <span class="font-medium">Next</span>
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" viewBox="0 0 20 20" fill="currentColor">
@@ -133,8 +161,17 @@
         aspect-ratio: 2;
     }
     
+    /* Fixed: Updated preserve3d styles to ensure clickability */
     .preserve3d {
         transform-style: preserve-3d;
+        pointer-events: none; /* Let clicks pass through to children */
+    }
+    
+    /* Fixed: Ensure buttons can receive clicks */
+    .size-button {
+        pointer-events: auto !important; /* Make buttons clickable */
+        cursor: pointer !important;
+        z-index: 10; /* Ensure buttons are on top */
     }
     
     .chngng {

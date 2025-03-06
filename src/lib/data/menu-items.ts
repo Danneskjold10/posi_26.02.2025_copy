@@ -125,14 +125,14 @@ export const menuItems: MenuCategory[] = [
         name: "Mozzarella Sticks", 
         description: "Breaded mozzarella sticks with marinara sauce", 
         price: 4.99, 
-        image: "/images/mozzarella-sticks.jpg" 
+        image: "/images/drink.jpg" 
       },
       { 
         id: 305, 
         name: "Side Salad", 
         description: "Fresh garden salad with choice of dressing", 
         price: 3.49, 
-        image: "/images/side-salad.jpg" 
+        image: "/images/drink.jpg" 
       }
     ]
   },
@@ -188,28 +188,28 @@ export const menuItems: MenuCategory[] = [
         name: "Ice Cream Cone", 
         description: "Vanilla, chocolate, or swirl soft serve", 
         price: 2.49, 
-        image: "/images/logo.png.jpg" 
+        image: "/images/logo.png" 
       },
       { 
         id: 502, 
         name: "Chocolate Chip Cookie", 
         description: "Freshly baked chocolate chip cookie", 
         price: 1.49, 
-        image: "/images/logo.png.jpg" 
+        image: "/images/logo.png" 
       },
       { 
         id: 503, 
         name: "Apple Pie", 
         description: "Warm apple pie with cinnamon", 
         price: 2.99, 
-        image: "/images/logo.png.jpg" 
+        image: "/images/logo.png" 
       },
       { 
         id: 504, 
         name: "Sundae", 
         description: "Vanilla ice cream with chocolate sauce and a cherry", 
         price: 3.49, 
-        image: "/images/logo.png.jpg" 
+        image: "/images/logo.png" 
       }
     ]
   },
