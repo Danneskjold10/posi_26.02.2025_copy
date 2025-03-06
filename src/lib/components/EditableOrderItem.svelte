@@ -2,6 +2,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import type { CartItem } from '../stores/cart';
+  // Import formatCustomizations and isCustomizableItem from cart.js
   import { formatCustomizations, isCustomizableItem } from '../stores/cart';
 
   // Props definition

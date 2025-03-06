@@ -5,10 +5,10 @@
     import MenuCategory from "$lib/components/MenuCategory.svelte";
     import EditableOrderItem from "$lib/components/EditableOrderItem.svelte";
     import { browser } from "$app/environment";
-    import { cartItems, getTotal, getItemCount, formatCustomizations } from "$lib/stores/cart";
+    import { cartItems, getTotal, getItemCount } from "$lib/stores/cart";
     import { slide } from 'svelte/transition';
     import CustomizationModal from "$lib/components/CustomizationModal.svelte";
-    import { formatDiningOption, findOriginalItemPrice, calculateCustomizationCost, scrollCategoryIntoView } from "$lib/utils";
+    import { formatDiningOption, findOriginalItemPrice, calculateCustomizationCost } from "$lib/utils";
     
     // State variables
     let isArrowAnimating = $state(false);
@@ -68,15 +68,6 @@
                 clearInterval(slideInterval);
                 clearInterval(arrowInterval);
             };
-        }
-    });
-    
-    // Trigger scrolling when active category changes
-    $effect(() => {
-        if (activeCategory && browser) {
-            setTimeout(() => {
-                scrollCategoryIntoView(`category-${activeCategory}`);
-            }, 100);
         }
     });
     
@@ -190,26 +181,21 @@
         showCustomizationModal = false;
     }
     
-    // Handlers for slides
-    function goToSlide(slideIndex: number): void {
-        currentSlide = slideIndex;
+    // For handling scroll on category buttons
+    function scrollCategoryIntoView(id: string): void {
+        if (browser) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.scrollIntoView({
+                    behavior: 'smooth',
+                    inline: 'center',
+                    block: 'nearest'
+                });
+            }
+        }
     }
     
-    // Create a handler for category selection
-    function createCategoryHandler(categoryId: number): () => void {
-        return function() {
-            changeCategory(categoryId);
-        };
-    }
-    
-    // Create handlers for slides
-    function createSlideHandler(slideIndex: number): () => void {
-        return function() {
-            goToSlide(slideIndex);
-        };
-    }
-    
-    // Create handlers for scroll buttons
+    // Helper function for scroll left
     function handleScrollLeft(): void {
         const container = document.querySelector('.hide-scrollbar');
         if (container) {
@@ -217,6 +203,7 @@
         }
     }
     
+    // Helper function for scroll right
     function handleScrollRight(): void {
         const container = document.querySelector('.hide-scrollbar');
         if (container) {
@@ -224,16 +211,22 @@
         }
     }
     
-    // Keyboard event handlers for accessibility
-    function handleKeyDown(event: KeyboardEvent, action: () => void): void {
-        if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            action();
-        }
+    // Helper for setting the current slide
+    function goToSlide(index: number): void {
+        currentSlide = index;
     }
-  </script>
+    
+    // Trigger scrolling when active category changes
+    $effect(() => {
+        if (activeCategory && browser) {
+            setTimeout(() => {
+                scrollCategoryIntoView(`category-${activeCategory}`);
+            }, 100);
+        }
+    });
+</script>
   
-  <div class="flex flex-col min-h-screen">
+<div class="flex flex-col min-h-screen">
   <!-- Promotional Slideshow -->
   <div class="relative w-full h-64 md:h-80 overflow-hidden mb-6 rounded-xl shadow-lg">
     {#each promoSlides as slide, i}
@@ -255,8 +248,7 @@
         {#each promoSlides as _, i}
             <button 
                 class="w-3 h-3 rounded-full transition-colors duration-300 {i === currentSlide ? 'bg-white' : 'bg-white/40'}"
-                onclick={createSlideHandler(i)}
-                onkeydown={e => handleKeyDown(e, createSlideHandler(i))}
+                onclick={() => goToSlide(i)}
                 aria-label="Go to slide {i + 1}"
             ></button>
         {/each}
@@ -283,7 +275,6 @@
             <button 
                 class="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-white/90 rounded-full p-2 shadow-md" 
                 onclick={handleScrollLeft}
-                onkeydown={e => handleKeyDown(e, handleScrollLeft)}
                 aria-label="Scroll left"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
@@ -297,8 +288,7 @@
                     <button 
                         id="category-{category.id}"
                         class="flex flex-col items-center min-w-20 transition-all duration-300 focus:outline-none {activeCategory === category.id ? 'text-primary font-bold' : ''}"
-                        onclick={createCategoryHandler(category.id)}
-                        onkeydown={e => handleKeyDown(e, createCategoryHandler(category.id))}
+                        onclick={() => changeCategory(category.id)}
                     >
                         <div class="w-16 h-16 rounded-xl bg-orange-50 flex items-center justify-center mb-2 overflow-hidden {activeCategory === category.id ? 'bg-orange-200' : ''}">
                             {#if category.imageUrl}
@@ -317,7 +307,6 @@
             <button 
                 class="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-white/90 rounded-full p-2 shadow-md" 
                 onclick={handleScrollRight}
-                onkeydown={e => handleKeyDown(e, handleScrollRight)}
                 aria-label="Scroll right"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
@@ -411,7 +400,6 @@
                 <button 
                     class="bg-white rounded-full p-3 shadow-md z-30"
                     onclick={toggleOrderSummary}
-                    onkeydown={e => handleKeyDown(e, toggleOrderSummary)}
                     aria-label="Toggle order summary"
                 >
                     <svg 
@@ -428,7 +416,6 @@
             <button 
                 class="relative overflow-hidden group px-8 py-4 h-auto min-h-16 border-4 border-green-800 rounded-full {cartItems.length === 0 ? 'opacity-70 cursor-not-allowed' : 'bg-green-800 text-white hover:bg-green-600'}" 
                 onclick={goToCheckout}
-                onkeydown={e => handleKeyDown(e, goToCheckout)}
                 disabled={cartItems.length === 0}
             >
                 <!-- Animated border glow effect -->
@@ -467,16 +454,16 @@
         on:addToCart={handleSaveCustomization}
     />
   {/if}
-  </div>
+</div>
   
-  <style>
+<style>
   /* Hide scrollbar but keep functionality */
   .hide-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
   }
   
   .hide-scrollbar::-webkit-scrollbar {
-  display: none;  /* Chrome, Safari, Opera */
+    display: none;  /* Chrome, Safari, Opera */
   }
-  </style>
+</style>

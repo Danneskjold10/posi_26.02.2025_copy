@@ -1,5 +1,5 @@
 // src/lib/stores/cart.js
-// Using Svelte 5 runes
+// Without using Svelte 5 runes
 
 // Define types
 /**
@@ -35,7 +35,7 @@
 
 // Initialize the cart store with type
 /** @type {CartItem[]} */
-const cartItems = $state([]);
+let cartItems = [];
 
 /**
 * Add item to cart
@@ -75,16 +75,12 @@ export function removeFromCart(itemId, index = 0) {
    // If there are multiple matching items (different customizations),
    // remove only the one at the specified index
    if (matchingItems.length > 1) {
-       const newItems = cartItems.filter((item, idx) => 
+       cartItems = cartItems.filter((item, idx) => 
            !(item.id === itemId && idx === index)
        );
-       cartItems.length = 0;
-       cartItems.push(...newItems);
    } else {
        // Otherwise, remove all items with the ID
-       const newItems = cartItems.filter(item => item.id !== itemId);
-       cartItems.length = 0;
-       cartItems.push(...newItems);
+       cartItems = cartItems.filter(item => item.id !== itemId);
    }
 }
 
@@ -97,15 +93,12 @@ export function removeFromCart(itemId, index = 0) {
 export function updateQuantity(itemId, quantity, index = 0) {
    // If there are multiple items with the same ID (different customizations),
    // update only the one at the specified index
-   const updatedItems = cartItems.map((item, idx) => {
+   cartItems = cartItems.map((item, idx) => {
        if (item.id === itemId && (idx === index || cartItems.filter(i => i.id === itemId).length === 1)) {
            return { ...item, quantity };
        }
        return item;
    });
-   
-   cartItems.length = 0;
-   cartItems.push(...updatedItems);
 }
 
 /**
@@ -118,11 +111,72 @@ export function getTotal(items = cartItems) {
 }
 
 /**
+* Get cart item count
+* @returns {number} Total number of items in cart (counting quantities)
+*/
+export function getItemCount() {
+   return cartItems.reduce((count, item) => count + item.quantity, 0);
+}
+
+/**
 * Clear cart
 */
 export function clearCart() {
-   cartItems.length = 0;
+   cartItems = [];
 }
 
-// Export the cart items as a readable store
+/**
+* Format customizations as readable text
+* @param {Customization[] | undefined} customizations - The customizations to format
+* @returns {string} Formatted customizations text
+*/
+export function formatCustomizations(customizations) {
+   if (!customizations || customizations.length === 0) return '';
+   
+   const customizationText = customizations
+     .map(cat => {
+       if (cat.selections.length === 0) return '';
+       
+       // Special handling for sauces with intensity
+       if (cat.category === "Sauce") {
+         return `${cat.category}: ${cat.selections.map(sel => {
+           if ('intensityLabel' in sel) {
+             return `${sel.name} (${sel.intensityLabel})`;
+           } else {
+             return sel.name;
+           }
+         }).join(', ')}`;
+       }
+       
+       return `${cat.category}: ${cat.selections.map(sel => sel.name).join(', ')}`;
+     })
+     .filter(text => text !== '')
+     .join(' • ');
+   
+   return customizationText;
+}
+
+/**
+* Check if an item is customizable based on its ID
+* @param {number} id - The item ID to check
+* @returns {boolean} Whether the item is customizable
+*/
+export function isCustomizableItem(id) {
+   // Check first digit of id
+   const categoryId = Math.floor(id / 100);
+   // Burgers (1xx), Chicken (2xx), and Combos (6xx) are customizable
+   return categoryId === 1 || categoryId === 2 || categoryId === 6;
+}
+
+/**
+* Format a dining option string for display
+* @param {string | null} option - The dining option ('dine-in' or 'to-go')
+* @returns {string} Formatted dining option text
+*/
+export function formatDiningOption(option) {
+   if (!option) return '';
+   return option === 'dine-in' ? 'Dine In' : 'To Go';
+}
+
+// Export the cart items
 export { cartItems };
