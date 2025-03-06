@@ -1,37 +1,62 @@
 <!-- src/lib/components/Carousel3D.svelte -->
 <script lang="ts">
-    import { onMount } from "svelte";
+    import { calculateCarouselTranslation, getCarouselItemTransform } from '../utils/animation-utils';
     
     // Props
-    export let items: string[];
-    export let selectedItem: number = 0;
-    export let moveForward: () => void;
+    let {
+        items = [],
+        selectedItem = 0,
+        moveForward
+    }: {
+        items: string[];
+        selectedItem?: number;
+        moveForward: () => void;
+    } = $props();
     
+    // Constants for carousel parameters
     const perspectiveFactor: number = 2;
     const translationFactor: number = 1.1;
     const carouselArcDeg: number = 90;
     
-    let carousel3dLen: number = items.length;
-    let carouselStepDeg = carouselArcDeg / (carousel3dLen > 1 ? carousel3dLen - 1 : carousel3dLen);
+    // State
+    let carouselClientWidth = $state(0);
+    let item3dtranslation = $state(0);
+    let currdeg = $state(0);
     
-    let carouselClientWidth = 0;
-    let item3dtranslation = 0;
-    let currdeg = 0;
+    // Derived values
+    const carousel3dLen = $derived(items.length);
+    const carouselStepDeg = $derived(
+        carouselArcDeg / (carousel3dLen > 1 ? carousel3dLen - 1 : carousel3dLen)
+    );
     
-    onMount(() => {
+    // Initialize with default values
+    $effect(() => {
         selectedItem = parseInt(((carousel3dLen - 1) / 2).toFixed(0));
         updateCarouselValues();
     });
     
-    // Create a reactive function to update values when selectedItem changes
-    $: {
-        selectedItem;
-        updateCarouselValues();
+    // Update values when selection changes
+    $effect(() => {
+        if (selectedItem !== undefined) {
+            updateCarouselValues();
+        }
+    });
+    
+    function updateCarouselValues(): void {
+        item3dtranslation = calculateCarouselTranslation(carouselClientWidth, carouselStepDeg);
+        currdeg = selectedItem * carouselStepDeg;
     }
     
-    function updateCarouselValues() {
-        item3dtranslation = 0.5 * carouselClientWidth / Math.tan((0.5 * carouselStepDeg) * (Math.PI / 180));
-        currdeg = selectedItem * carouselStepDeg;
+    // Item selection handler
+    function handleItemSelection(index: number): void {
+        selectedItem = index;
+    }
+    
+    // Create selection handler functions
+    function createSelectionHandler(index: number): () => void {
+        return function() {
+            handleItemSelection(index);
+        };
     }
 </script>
 
@@ -44,9 +69,9 @@
             <div class="w-full h-full absolute preserve3d chngng" 
                  style="transform:translateZ(-{translationFactor * item3dtranslation}px) rotateY(-{currdeg}deg);">
                 {#each items as item, d}
-                    <button on:click={() => { selectedItem = d }}
+                    <button onclick={createSelectionHandler(d)}
                         class="absolute preserve3d flex items-center justify-center aspect-square"
-                        style="transform: rotateY({d * carouselStepDeg}deg) translateZ({(selectedItem === d ? translationFactor : 1) * item3dtranslation}px);">
+                        style="transform: {getCarouselItemTransform(d, carouselStepDeg, item3dtranslation, selectedItem === d, translationFactor)};">
                         
                         <div class="h-32 w-32 flex items-center justify-center text-xl font-semibold {selectedItem === d ? 'bg-green-600 text-white' : 'bg-pink-200/40 text-gray-600'} 
                               rounded-lg shadow-lg transform transition-all duration-300">
@@ -74,7 +99,7 @@
     <div class="absolute bottom-6 left-0 right-0 flex justify-center">
         <button 
             class="bg-green-600 text-white py-3 px-6 rounded-md flex items-center justify-center space-x-2 hover:bg-green-700 transition-colors"
-            on:click={moveForward}
+            onclick={moveForward}
         >
             <span>Forward</span>
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
