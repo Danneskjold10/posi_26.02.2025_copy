@@ -3,12 +3,13 @@
     import { goto } from '$app/navigation';
     import { menuItems } from "$lib/data/menu-items";
     import MenuCategory from "$lib/components/MenuCategory.svelte";
-    import EditableOrderItem from "$lib/components/EditableOrderItem.svelte";
     import { browser } from "$app/environment";
     import { cartItems, getTotal, getItemCount, removeFromCart, updateQuantity, formatCustomizations } from "$lib/stores/cart";
     import { slide } from 'svelte/transition';
     import CustomizationModal from "$lib/components/CustomizationModal.svelte";
     import { formatDiningOption, findOriginalItemPrice, calculateCustomizationCost, isCustomizableItem } from "$lib/utils";
+    
+
     
     // State variables
     let isArrowAnimating = $state(false);
@@ -44,6 +45,20 @@
             description: "Free dessert with any large combo"
         }
     ];
+
+    // Add this effect to your script section
+$effect(() => {
+    // This effect will run every time cartItems changes
+    // Force recalculation of derived values
+    const totalItemCount = cartItems.reduce((count, item) => count + item.quantity, 0);
+    const totalPriceValue = cartItems.reduce((total, item) => total + (item.price * item.quantity), 0).toFixed(2);
+    
+    // If we were using variables from elsewhere, we'd update them here
+    // This effect ensures reactivity happens even if you're not using derived values
+    
+    // You could also trigger additional logic here if needed
+    console.log(`Cart updated: ${totalItemCount} items, $${totalPriceValue}`);
+});
     
     // Initialize component
     $effect(() => {
@@ -83,48 +98,7 @@
         isOrderSummaryOpen = !isOrderSummaryOpen;
     }
     
-    // Functions for handling cart item quantity updates
-    function decreaseQuantity(id: number, index: number): void {
-        // Get the item from the cart
-        const item = cartItems[index];
-        
-        // Verify it's the correct item (safety check)
-        if (item && item.id === id) {
-            if (item.quantity > 1) {
-                // Create a copy of the item with reduced quantity
-                const updatedItem = { ...item, quantity: item.quantity - 1 };
-                
-                // Update the cartItems array with the modified item
-                cartItems[index] = updatedItem;
-            } else {
-                // If quantity is 1 and going to be reduced, remove the item
-                // Create a new array without the item to remove
-                const updatedCart = [
-                    ...cartItems.slice(0, index),
-                    ...cartItems.slice(index + 1)
-                ];
-                
-                // Replace the entire cartItems array
-                cartItems.length = 0;
-                cartItems.push(...updatedCart);
-            }
-        }
-    }
-
-    function increaseQuantity(id: number, index: number): void {
-        // Get the item from the cart
-        const item = cartItems[index];
-        
-        // Verify it's the correct item (safety check)
-        if (item && item.id === id) {
-            // Create a copy of the item with increased quantity
-            const updatedItem = { ...item, quantity: item.quantity + 1 };
-            
-            // Update the cartItems array with the modified item
-            cartItems[index] = updatedItem;
-        }
-    }
-    
+ 
     function restartOrder(): void {
         // Clear cart
         cartItems.length = 0;
@@ -142,30 +116,6 @@
         }
     }
     
-    // Handle edit request from order item
-    function handleEditOrderItem(event: CustomEvent): void {
-        const { item, index } = event.detail;
-        
-        // Only proceed if we're not already showing the modal
-        if (!showCustomizationModal) {
-            // Store the original base price before editing
-            originalItemBasePrice = findOriginalItemPrice(item.id);
-            
-            // Make a deep copy of the item to edit
-            const itemCopy = JSON.parse(JSON.stringify(item));
-            
-            // If we have the original item, reset the price to base price
-            if (originalItemBasePrice > 0) {
-                // Set the itemCopy price back to the original catalog price
-                itemCopy.price = originalItemBasePrice;
-            }
-            
-            // Now assign to editingItem after all modifications
-            editingItem = itemCopy;
-            editingItemIndex = index;
-            showCustomizationModal = true;
-        }
-    }
   
     // Handle saving customizations
     function handleSaveCustomization(event: CustomEvent): void {
@@ -376,60 +326,88 @@
                 </div>
             </div>
             
-            <!-- Order Items List -->
-            <div class="mb-6 max-h-64 overflow-y-auto">
-                {#each cartItems as item, i}
-                    <div class="flex items-center py-4 border-b border-gray-200 last:border-b-0">
-                        <img src={item.image || "/images/placeholder-food.png"} 
-                            alt={item.name} 
-                            class="w-16 h-16 object-cover rounded-lg shadow-sm mr-4" />
-                        
-                        <div class="flex-grow">
-                            <h3 class="font-bold">{item.name}</h3>
-                            <p class="text-sm text-orange-600">${item.price.toFixed(2)} each</p>
-                            
-                            <!-- Show customizations if any -->
-                            {#if item.customizations && item.customizations.length > 0}
-                                <p class="text-sm mt-1 text-gray-600 line-clamp-2">
-                                    {formatCustomizations(item.customizations)}
-                                </p>
-                            {/if}
-                            
-                            <!-- Edit button if item is customizable -->
-                            {#if isCustomizableItem(item.id)}
-                                <button 
-                                    class="text-blue-600 hover:text-blue-800 text-sm font-semibold mt-1"
-                                    onclick={() => handleEditOrderItem({ detail: { item, index: i }})}
-                                >
-                                    Edit customization
-                                </button>
-                            {/if}
-                        </div>
-                        
-                        <div class="flex flex-col items-center ml-4">
-                            <div class="flex items-center space-x-2 border border-gray-300 rounded-lg overflow-hidden">
-                                <button 
-                                    class="px-2 py-1 bg-gray-100 hover:bg-gray-200 transition-colors"
-                                    onclick={() => decreaseQuantity(item.id, i)}
-                                    aria-label="Decrease quantity"
-                                >-</button>
-                                
-                                <span class="px-2 font-medium">{item.quantity}</span>
-                                
-                                <button 
-                                    class="px-2 py-1 bg-gray-100 hover:bg-gray-200 transition-colors"
-                                    onclick={() => increaseQuantity(item.id, i)}
-                                    aria-label="Increase quantity"
-                                >+</button>
-                            </div>
-                            
-                            <div class="text-sm font-bold mt-2">
-                                ${(item.price * item.quantity).toFixed(2)}
-                            </div>
-                        </div>
-                    </div>
-                {/each}
+ <!-- Order Items List -->
+<div class="mb-6 max-h-64 overflow-y-auto">
+    {#each cartItems as item, i}
+        <div class="flex items-center py-4 border-b border-gray-200 last:border-b-0">
+            <img src={item.image || "/images/placeholder-food.png"} 
+                alt={item.name} 
+                class="w-16 h-16 object-cover rounded-lg shadow-sm mr-4" />
+            
+            <div class="flex-grow">
+                <h3 class="font-bold">{item.name}</h3>
+                <p class="text-sm text-orange-600">${item.price.toFixed(2)} each</p>
+                
+                <!-- Show customizations if any -->
+                {#if item.customizations && item.customizations.length > 0}
+                    <p class="text-sm mt-1 text-gray-600 line-clamp-2">
+                        {formatCustomizations(item.customizations)}
+                    </p>
+                {/if}
+                
+              <!-- Edit button if item is customizable -->
+{#if isCustomizableItem(item.id)}
+<button 
+    class="text-blue-600 hover:text-blue-800 text-sm font-semibold mt-1"
+    onclick={() => {
+        // Directly call the edit logic instead of trying to create a custom event
+        if (!showCustomizationModal) {
+            originalItemBasePrice = findOriginalItemPrice(item.id);
+            
+            // Make a deep copy of the item to edit
+            const itemCopy = JSON.parse(JSON.stringify(item));
+            
+            // If we have the original item, reset the price to base price
+            if (originalItemBasePrice > 0) {
+                // Set the itemCopy price back to the original catalog price
+                itemCopy.price = originalItemBasePrice;
+            }
+            
+            // Now assign to editingItem after all modifications
+            editingItem = itemCopy;
+            editingItemIndex = i;
+            showCustomizationModal = true;
+        }
+    }}
+>
+    Edit customization
+</button>
+{/if}
             </div>
+            
+            <div class="flex flex-col items-center ml-4">
+               <!-- Replace your quantity buttons with this improved version -->
+
+<div class="flex items-center space-x-2 border border-gray-300 rounded-lg overflow-hidden">
+    <button 
+        class="px-2 py-1 bg-gray-100 hover:bg-gray-200 transition-colors"
+        onclick={() => {
+            if (item.quantity > 1) {
+                updateQuantity(item.id, item.quantity - 1, i);
+            } else {
+                removeFromCart(item.id, i);
+            }
+        }}
+        aria-label="Decrease quantity"
+    >-</button>
+    
+    <span class="px-2 font-medium">{item.quantity}</span>
+    
+    <button 
+        class="px-2 py-1 bg-gray-100 hover:bg-gray-200 transition-colors"
+        onclick={() => {
+            updateQuantity(item.id, item.quantity + 1, i);
+        }}
+        aria-label="Increase quantity"
+    >+</button>
+</div>
+                <div class="text-sm font-bold mt-2">
+                    ${(item.price * item.quantity).toFixed(2)}
+                </div>
+            </div>
+        </div>
+    {/each}
+</div>
             
             <!-- Checkout Actions -->
             <div class="flex items-center justify-between pt-4 border-t border-gray-200">
@@ -440,10 +418,11 @@
                     Clear Order
                 </button>
                 
-                <div class="flex items-center">
-                    <span class="mr-2 font-bold">Total:</span>
-                    <span class="text-xl font-bold">$ {getTotal()}</span>
-                </div>
+               <!-- Find this in the Checkout Actions section and replace it -->
+               <div class="flex items-center">
+                <span class="mr-2 font-bold">Total:</span>
+                <span class="text-xl font-bold">${getTotal()}</span>
+            </div>
             </div>
         </div>
     {/if}
@@ -452,6 +431,7 @@
     <div class="bg-base-300 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.2)] p-4">
         <div class="container mx-auto flex justify-between items-center">
             <div class="flex-1">
+                <!-- Find this section in the Fixed Payment Bar at Bottom and replace it -->
                 <div class="flex items-center">
                     <span class="mr-2 font-bold">Items:</span>
                     <span class="badge badge-primary badge-lg">{getItemCount()}</span>
