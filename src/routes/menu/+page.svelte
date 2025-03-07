@@ -5,10 +5,10 @@
     import MenuCategory from "$lib/components/MenuCategory.svelte";
     import EditableOrderItem from "$lib/components/EditableOrderItem.svelte";
     import { browser } from "$app/environment";
-    import { cartItems, getTotal, getItemCount } from "$lib/stores/cart";
+    import { cartItems, getTotal, getItemCount, removeFromCart, updateQuantity, formatCustomizations } from "$lib/stores/cart";
     import { slide } from 'svelte/transition';
     import CustomizationModal from "$lib/components/CustomizationModal.svelte";
-    import { formatDiningOption, findOriginalItemPrice, calculateCustomizationCost } from "$lib/utils";
+    import { formatDiningOption, findOriginalItemPrice, calculateCustomizationCost, isCustomizableItem } from "$lib/utils";
     
     // State variables
     let isArrowAnimating = $state(false);
@@ -83,22 +83,45 @@
         isOrderSummaryOpen = !isOrderSummaryOpen;
     }
     
+    // Functions for handling cart item quantity updates
     function decreaseQuantity(id: number, index: number): void {
+        // Get the item from the cart
         const item = cartItems[index];
+        
+        // Verify it's the correct item (safety check)
         if (item && item.id === id) {
             if (item.quantity > 1) {
-                item.quantity -= 1;
+                // Create a copy of the item with reduced quantity
+                const updatedItem = { ...item, quantity: item.quantity - 1 };
+                
+                // Update the cartItems array with the modified item
+                cartItems[index] = updatedItem;
             } else {
-                // Remove the item if quantity is 1
-                cartItems.splice(index, 1);
+                // If quantity is 1 and going to be reduced, remove the item
+                // Create a new array without the item to remove
+                const updatedCart = [
+                    ...cartItems.slice(0, index),
+                    ...cartItems.slice(index + 1)
+                ];
+                
+                // Replace the entire cartItems array
+                cartItems.length = 0;
+                cartItems.push(...updatedCart);
             }
         }
     }
-    
+
     function increaseQuantity(id: number, index: number): void {
+        // Get the item from the cart
         const item = cartItems[index];
+        
+        // Verify it's the correct item (safety check)
         if (item && item.id === id) {
-            item.quantity += 1;
+            // Create a copy of the item with increased quantity
+            const updatedItem = { ...item, quantity: item.quantity + 1 };
+            
+            // Update the cartItems array with the modified item
+            cartItems[index] = updatedItem;
         }
     }
     
@@ -353,16 +376,58 @@
                 </div>
             </div>
             
-            <!-- Order Items - now using EditableOrderItem component -->
+            <!-- Order Items List -->
             <div class="mb-6 max-h-64 overflow-y-auto">
                 {#each cartItems as item, i}
-                    <EditableOrderItem 
-                        item={item} 
-                        index={i}
-                        on:increase={({detail}) => increaseQuantity(detail.id, detail.index)}
-                        on:decrease={({detail}) => decreaseQuantity(detail.id, detail.index)}
-                        on:edit={handleEditOrderItem}
-                    />
+                    <div class="flex items-center py-4 border-b border-gray-200 last:border-b-0">
+                        <img src={item.image || "/images/placeholder-food.png"} 
+                            alt={item.name} 
+                            class="w-16 h-16 object-cover rounded-lg shadow-sm mr-4" />
+                        
+                        <div class="flex-grow">
+                            <h3 class="font-bold">{item.name}</h3>
+                            <p class="text-sm text-orange-600">${item.price.toFixed(2)} each</p>
+                            
+                            <!-- Show customizations if any -->
+                            {#if item.customizations && item.customizations.length > 0}
+                                <p class="text-sm mt-1 text-gray-600 line-clamp-2">
+                                    {formatCustomizations(item.customizations)}
+                                </p>
+                            {/if}
+                            
+                            <!-- Edit button if item is customizable -->
+                            {#if isCustomizableItem(item.id)}
+                                <button 
+                                    class="text-blue-600 hover:text-blue-800 text-sm font-semibold mt-1"
+                                    onclick={() => handleEditOrderItem({ detail: { item, index: i }})}
+                                >
+                                    Edit customization
+                                </button>
+                            {/if}
+                        </div>
+                        
+                        <div class="flex flex-col items-center ml-4">
+                            <div class="flex items-center space-x-2 border border-gray-300 rounded-lg overflow-hidden">
+                                <button 
+                                    class="px-2 py-1 bg-gray-100 hover:bg-gray-200 transition-colors"
+                                    onclick={() => decreaseQuantity(item.id, i)}
+                                    aria-label="Decrease quantity"
+                                >-</button>
+                                
+                                <span class="px-2 font-medium">{item.quantity}</span>
+                                
+                                <button 
+                                    class="px-2 py-1 bg-gray-100 hover:bg-gray-200 transition-colors"
+                                    onclick={() => increaseQuantity(item.id, i)}
+                                    aria-label="Increase quantity"
+                                >+</button>
+                            </div>
+                            
+                            <div class="text-sm font-bold mt-2">
+                                ${(item.price * item.quantity).toFixed(2)}
+                            </div>
+                        </div>
+                    </div>
                 {/each}
             </div>
             
@@ -372,7 +437,7 @@
                     class="px-6 py-3 bg-orange-100 text-orange-500 rounded-full font-medium" 
                     onclick={restartOrder}
                 >
-                    Restart Menu
+                    Clear Order
                 </button>
                 
                 <div class="flex items-center">

@@ -27,8 +27,8 @@
       tabindex="0"
       role="button"
       aria-label="Light intensity"
-      on:click={() => onIntensityChange(0)}
-      on:keydown={(event) => handleKey(event, 0)}
+      onclick={() => onIntensityChange(0)}
+      onkeydown={(event) => handleKey(event, 0)}
     ></div>
   
     <!-- Regular level - Yellow when regular or extra is selected -->
@@ -43,8 +43,8 @@
       tabindex="0"
       role="button"
       aria-label="Regular intensity"
-      on:click={() => onIntensityChange(1)}
-      on:keydown={(event) => handleKey(event, 1)}
+      onclick={() => onIntensityChange(1)}
+      onkeydown={(event) => handleKey(event, 1)}
     ></div>
   
     <!-- Extra level - Red only when extra is selected -->
@@ -59,7 +59,7 @@
       tabindex="0"
       role="button"
       aria-label="Extra intensity"
-      on:keydown={(event) => handleKey(event, 2)}
-      on:click={() => onIntensityChange(2)}
+      onkeydown={(event) => handleKey(event, 2)}
+      onclick={() => onIntensityChange(2)}
     ></div>
   </div>

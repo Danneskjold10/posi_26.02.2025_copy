@@ -40,7 +40,8 @@ export const cartItems = $state<CartItem[]>([]);
 export function addToCart(item: MenuItem, quantity = 1, customizations?: Customization[]): void {
   if (customizations) {
     // Add as a new item with customizations
-    cartItems.push({ ...item, quantity, customizations });
+    const newItem: CartItem = { ...item, quantity, customizations };
+    cartItems.push(newItem);
   } else {
     // Check if exact item (without customizations) already exists in cart
     const existingItemIndex = cartItems.findIndex(i => 
@@ -48,11 +49,18 @@ export function addToCart(item: MenuItem, quantity = 1, customizations?: Customi
     );
     
     if (existingItemIndex !== -1) {
-      // Update quantity if item already exists
-      cartItems[existingItemIndex].quantity += quantity;
+      // Update quantity if item already exists - create a new object for reactivity
+      const updatedItem = {
+        ...cartItems[existingItemIndex],
+        quantity: cartItems[existingItemIndex].quantity + quantity
+      };
+      
+      // Replace the item in the array
+      cartItems[existingItemIndex] = updatedItem;
     } else {
       // Add new item if it doesn't exist
-      cartItems.push({ ...item, quantity });
+      const newItem: CartItem = { ...item, quantity };
+      cartItems.push(newItem);
     }
   }
 }
@@ -66,19 +74,29 @@ export function removeFromCart(itemId: number, index = 0): void {
   // Find all items that match the ID
   const matchingItems = cartItems.filter(item => item.id === itemId);
   
-  // If there are multiple matching items (different customizations),
-  // remove only the one at the specified index
+  // If there are multiple matching items (different customizations)
   if (matchingItems.length > 1) {
-    const newItems = cartItems.filter((item, idx) => 
-      !(item.id === itemId && idx === index)
+    // Find the specific item to remove by its index
+    const itemToRemove = cartItems.findIndex((item, idx) => 
+      item.id === itemId && idx === index
     );
-    cartItems.length = 0;
-    cartItems.push(...newItems);
+    
+    if (itemToRemove !== -1) {
+      // Create a new array without the specific item
+      const newCart = [
+        ...cartItems.slice(0, itemToRemove),
+        ...cartItems.slice(itemToRemove + 1)
+      ];
+      
+      // Update cartItems with the new array
+      cartItems.length = 0;
+      cartItems.push(...newCart);
+    }
   } else {
-    // Otherwise, remove all items with the ID
-    const newItems = cartItems.filter(item => item.id !== itemId);
+    // If there's only one item with this ID, remove it directly
+    const newCart = cartItems.filter(item => item.id !== itemId);
     cartItems.length = 0;
-    cartItems.push(...newItems);
+    cartItems.push(...newCart);
   }
 }
 
@@ -89,19 +107,35 @@ export function removeFromCart(itemId: number, index = 0): void {
  * @param {number} [index=0] - The index if multiple items have same ID
  */
 export function updateQuantity(itemId: number, quantity: number, index = 0): void {
-  // If there are multiple items with the same ID (different customizations),
-  // update only the one at the specified index
+  // If the quantity is 0 or less, remove the item
   if (quantity <= 0) {
     removeFromCart(itemId, index);
     return;
   }
   
-  const targetIndex = cartItems.findIndex((item, idx) => 
-    item.id === itemId && (idx === index || cartItems.filter(i => i.id === itemId).length === 1)
-  );
+  // Find the specific item to update
+  let targetIndex = -1;
   
+  // If multiple items have the same ID, use the index to find the specific one
+  if (cartItems.filter(i => i.id === itemId).length > 1) {
+    targetIndex = cartItems.findIndex((item, idx) => 
+      item.id === itemId && idx === index
+    );
+  } else {
+    // Otherwise, find the first item with the matching ID
+    targetIndex = cartItems.findIndex(item => item.id === itemId);
+  }
+  
+  // Update the item if found
   if (targetIndex !== -1) {
-    cartItems[targetIndex].quantity = quantity;
+    // Create a new item with the updated quantity
+    const updatedItem = {
+      ...cartItems[targetIndex],
+      quantity
+    };
+    
+    // Replace the item in the array
+    cartItems[targetIndex] = updatedItem;
   }
 }
 

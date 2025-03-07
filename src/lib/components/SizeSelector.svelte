@@ -1,9 +1,9 @@
 <!-- src/lib/components/SizeSelector.svelte -->
 <script lang="ts">
-    // Props definition
+    // Props definition with bindable selectedSize
     let {
         sizes = ["SM", "MD", "LG", "XL", "2XL"],
-        selectedSize = 2,
+        selectedSize = $bindable(2),  // Mark as bindable for two-way binding
         moveForward
     }: {
         sizes?: string[];
@@ -21,17 +21,22 @@
     let item3dtranslation = $state(0);
     let currdeg = $state(0);
     
+    // Price adjustment constants - explicit typing
+    const SIZE_UPGRADE_COST = 1.50;   // Cost per size upgrade
+    const SIZE_DOWNGRADE_DISCOUNT = 0.75; // Discount per size downgrade
+    const DEFAULT_SIZE_INDEX = 2;     // LG is the default size (index 2)
+    
     // Derived values
     const carousel3dLen = $derived(sizes.length);
     const carouselStepDeg = $derived(
         carouselArcDeg / (carousel3dLen > 1 ? carousel3dLen - 1 : carousel3dLen)
     );
     
-    // Initialize with default values using $effect instead of onMount
+    // Initialize with default values
     $effect(() => {
         // Set to middle item initially if not already set
         if (selectedSize === undefined) {
-            selectedSize = Math.floor((carousel3dLen - 1) / 2);
+            selectedSize = DEFAULT_SIZE_INDEX;
         }
         updateCarouselValues();
     });
@@ -48,37 +53,51 @@
         currdeg = selectedSize * carouselStepDeg;
     }
     
-    // Fixed: Enhanced handleSizeSelection to prevent event propagation
-    function handleSizeSelection(d: number, event: Event): void {
-        if (event) {
-            event.stopPropagation(); // Prevent event bubbling
-        }
-        console.log('Size selected:', d, sizes[d]); // Debug log
-        selectedSize = d; // Update the state
-        updateCarouselValues(); // Ensure carousel updates immediately
+    function handleSizeSelection(d: number): void {
+        selectedSize = d;
     }
     
-    // Fixed: Enhanced forward click handler to stop propagation and log
-    function handleForwardClick(event: Event): void {
-        if (event) {
-            event.stopPropagation();
+    // Helper functions for price display - simplified to avoid type issues
+    function getSizeAdjustmentText(index: number): string {
+        if (index === DEFAULT_SIZE_INDEX) return "Standard";
+        
+        const diff = index - DEFAULT_SIZE_INDEX;
+        
+        if (diff > 0) {
+            // Price increase for larger sizes
+            const amount = diff * SIZE_UPGRADE_COST;
+            return "+$" + amount.toFixed(2);
+        } else {
+            // Price decrease for smaller sizes
+            const amount = Math.abs(diff) * SIZE_DOWNGRADE_DISCOUNT;
+            return "-$" + amount.toFixed(2);
         }
-        console.log("Moving forward with size:", sizes[selectedSize]);
-        moveForward(); // Call the function passed as a prop
     }
     
     // Keyboard event handler for accessibility
-    function handleKeyDown(event: KeyboardEvent, action: (e: Event) => void): void {
+    function handleKeyDown(event: KeyboardEvent, action: () => void): void {
         if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            action(event);
+            action();
         }
     }
 </script>
   
 <div class="w-full h-full relative flex flex-col justify-center items-center bg-pink-100 pt-12 pb-16">
+    <!-- Size information -->
+    <div class="text-center mb-6">
+        <h2 class="text-xl font-bold text-orange-800">Select Your Size</h2>
+        <p class="text-sm text-gray-700">
+            Size {sizes[selectedSize]}: 
+            <span class={selectedSize === DEFAULT_SIZE_INDEX ? "text-gray-600" : 
+                       (selectedSize > DEFAULT_SIZE_INDEX ? "text-orange-600 font-semibold" : "text-green-600 font-semibold")}>
+                {selectedSize === DEFAULT_SIZE_INDEX ? "Standard Price" : getSizeAdjustmentText(selectedSize)}
+            </span>
+        </p>
+    </div>
+    
     <!-- Carousel container -->
-    <div class="carouselSize flex-grow flex items-center justify-center mb-24 mt-8 mx-auto relative">
+    <div class="carouselSize flex-grow flex items-center justify-center mb-20 mt-4 mx-auto relative">
         <div 
             class="h-full aspect-square relative preserve3d" 
             bind:clientWidth={carouselClientWidth} 
@@ -89,19 +108,19 @@
                 style="transform:translateZ(-{translationFactor * item3dtranslation}px) rotateY(-{currdeg}deg);"
             >
                 {#each sizes as size, d}
-                    <!-- Fixed: Updated button with explicit event handling -->
                     <button 
-                        onclick={(event) => handleSizeSelection(d, event)}
-                        onkeydown={(event) => handleKeyDown(event, (e) => handleSizeSelection(d, e))}
-                        class="btn size-button {selectedSize === d ? 'bg-green-600 text-white' : 'bg-white/70 text-gray-700'} 
-                             w-full h-full absolute opacity-80 flex items-center justify-center border border-gray-300 
-                             font-bold text-2xl rounded-lg shadow-md"
+                        onclick={() => handleSizeSelection(d)}
+                        onkeydown={e => handleKeyDown(e, () => handleSizeSelection(d))}
+                        class="btn {selectedSize === d ? 'bg-green-600 text-white' : 'bg-white/70 text-gray-700'} 
+                             w-full h-full absolute opacity-80 flex flex-col items-center justify-center gap-2 border border-gray-300 
+                             font-bold text-3xl rounded-lg shadow-md"
                         style="transform: rotateY({d * carouselStepDeg}deg) translateZ({(selectedSize === d ? translationFactor : 1) * item3dtranslation}px); 
                                scale: 0.85;"
-                        aria-pressed={selectedSize === d}
-                        tabindex="0"
                     >
-                        {size}
+                        <span>{size}</span>
+                        <span class="text-sm mt-1 px-2 py-0.5 rounded-full {d === DEFAULT_SIZE_INDEX ? 'bg-gray-100 text-gray-800' : (d < DEFAULT_SIZE_INDEX ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800')}">
+                            {d === DEFAULT_SIZE_INDEX ? "Standard" : getSizeAdjustmentText(d)}
+                        </span>
                     </button>
                 {/each}
             </div>
@@ -118,33 +137,28 @@
                 min="0" 
                 max={carousel3dLen - 1} 
                 step="1" 
-                value={selectedSize}
-                oninput={(e) => handleSizeSelection(parseInt(e.currentTarget.value), e)}
-                aria-label="Size selection slider"
+                bind:value={selectedSize} 
             />
         </div>
         
-        <!-- Carousel Labels with click functionality -->
+        <!-- Simplified size labels -->
         <div class="flex justify-between w-full px-1 mb-8 text-sm">
             {#each sizes as size, d}
-                <button
-                    onclick={(event) => handleSizeSelection(d, event)} 
-                    class={`${selectedSize === d ? 'font-bold text-amber-800' : 'text-gray-600'} px-2 py-1 rounded hover:bg-amber-100 transition-colors`}
-                    aria-pressed={selectedSize === d}
-                >
-                    {size}
-                </button>
+                <div class="flex flex-col items-center">
+                    <span class={selectedSize === d ? 'font-bold text-amber-800' : 'text-gray-600'}>{size}</span>
+                    <span class="text-xs mt-1 {d === DEFAULT_SIZE_INDEX ? '' : d < DEFAULT_SIZE_INDEX ? 'text-green-600' : 'text-orange-600'}">
+                        {d === DEFAULT_SIZE_INDEX ? "" : getSizeAdjustmentText(d)}
+                    </span>
+                </div>
             {/each}
         </div>
         
         <!-- Forward Button (Centered) -->
         <div class="flex justify-center w-full">
-            <!-- Fixed: Updated button with explicit event handling -->
             <button 
-                class="bg-amber-500 hover:bg-amber-600 text-white py-3 px-8 rounded-full flex items-center space-x-2 transition-colors"
-                onclick={(event) => handleForwardClick(event)}
-                onkeydown={(event) => handleKeyDown(event, handleForwardClick)}
-                aria-label="Continue with selected size"
+                class="bg-amber-500 hover:bg-amber-600 text-white py-3 px-8 rounded-full flex items-center transition-colors"
+                onclick={moveForward}
+                onkeydown={e => handleKeyDown(e, moveForward)}
             >
                 <span class="font-medium">Next</span>
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" viewBox="0 0 20 20" fill="currentColor">
@@ -161,17 +175,8 @@
         aspect-ratio: 2;
     }
     
-    /* Fixed: Updated preserve3d styles to ensure clickability */
     .preserve3d {
         transform-style: preserve-3d;
-        pointer-events: none; /* Let clicks pass through to children */
-    }
-    
-    /* Fixed: Ensure buttons can receive clicks */
-    .size-button {
-        pointer-events: auto !important; /* Make buttons clickable */
-        cursor: pointer !important;
-        z-index: 10; /* Ensure buttons are on top */
     }
     
     .chngng {
@@ -181,19 +186,19 @@
     /* Custom range styling with both standard and vendor prefixes */
     input[type=range].range {
         -webkit-appearance: none;
-        appearance: none; /* Standard property alongside vendor prefix */
+        appearance: none;
         height: 0.5rem;
-        background: #fec7e1; /* Amber 100 */
+        background: #fec7e1;
         border-radius: 8px;
     }
     
     input[type=range].range::-webkit-slider-thumb {
         -webkit-appearance: none;
-        appearance: none; /* Standard property alongside vendor prefix */
+        appearance: none;
         height: 16px;
         width: 16px;
         border-radius: 50%;
-        background: #f59e0b; /* Amber 500 */
+        background: #f59e0b;
         cursor: pointer;
         box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);
     }
@@ -202,7 +207,7 @@
         height: 16px;
         width: 16px;
         border-radius: 50%;
-        background: #f59e0b; /* Amber 500 */
+        background: #f59e0b;
         cursor: pointer;
         border: none;
         box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);

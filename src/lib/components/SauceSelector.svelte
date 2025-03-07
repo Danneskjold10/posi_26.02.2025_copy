@@ -2,10 +2,14 @@
 <script lang="ts">
     import IntensityBar from './IntensityBar.svelte';
     import { getEmojiForOption, handleImageError, getIntensityLabel } from '../utils';
+    import { createEventDispatcher } from 'svelte';
     
-    // Props definition
+    // Define a dispatcher to send events to parent
+    const dispatch = createEventDispatcher();
+    
+    // Props definition with bindable options
     let {
-        options = [],
+        options = $bindable([]),
         moveForward,
         moveBackward
     }: {
@@ -36,26 +40,12 @@
         return () => clearInterval(arrowInterval);
     });
     
-    // Initialize intensity values if they don't exist
-    $effect(() => {
-        options.forEach(option => {
-            if (option.intensity === undefined) {
-                // Create a copy of options to ensure reactivity
-                const updatedOptions = [...options];
-                const index = updatedOptions.findIndex(o => o.id === option.id);
-                if (index !== -1) {
-                    updatedOptions[index].intensity = option.selected ? 1 : -1;
-                }
-                // Update options with the modified copy
-                options = updatedOptions;
-            }
-        });
-    });
-    
-    // Toggle sauce selection
+    // Function to toggle sauce selection - now using a callback approach
     function toggleSauceSelection(index: number): void {
-        // Create a copy of options to ensure reactivity
+        // Create a copy of options to avoid direct mutation
         const updatedOptions = [...options];
+        
+        // Toggle the selected property
         updatedOptions[index].selected = !updatedOptions[index].selected;
         
         // Set initial intensity to medium (1) when selected, or -1 when deselected
@@ -65,20 +55,26 @@
             updatedOptions[index].intensity = -1;
         }
         
-        // Replace options with updated copy to trigger reactivity
+        // Update the parent's options array through the binding
         options = updatedOptions;
+        
+        // Also dispatch an event for components that prefer callbacks
+        dispatch('optionsChange', { options: updatedOptions });
     }
     
     // Handle intensity change
     function handleIntensityChange(index: number, level: number): void {
         // Only change intensity if the sauce is selected
         if (options[index].selected) {
-            // Create a copy of options to ensure reactivity
+            // Create a copy of options to avoid direct mutation
             const updatedOptions = [...options];
             updatedOptions[index].intensity = level;
             
-            // Replace options with updated copy to trigger reactivity
+            // Update the parent's options array through the binding
             options = updatedOptions;
+            
+            // Also dispatch an event for components that prefer callbacks
+            dispatch('optionsChange', { options: updatedOptions });
         }
     }
     
