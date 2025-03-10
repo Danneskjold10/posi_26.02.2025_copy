@@ -75,7 +75,8 @@
       aria-label="Decrease quantity"
     >-</button>
     
-    <span class="px-2 font-medium">{item.quantity}</span>
+    <!-- Add data attribute for direct DOM manipulation -->
+    <span id="item-quantity-{index}" data-item-quantity="{index}" class="px-2 font-medium">{item.quantity}</span>
     
     <button 
       class="px-2 py-1 bg-gray-100 hover:bg-gray-200 transition-colors"
@@ -84,7 +85,8 @@
     >+</button>
   </div>
   
-  <div class="text-sm font-bold mt-2">
+  <!-- Add data attribute for direct DOM manipulation -->
+  <div id="item-subtotal-{index}" data-item-subtotal="{index}" class="text-sm font-bold mt-2">
     ${(item.price * item.quantity).toFixed(2)}
   </div>
 </div>

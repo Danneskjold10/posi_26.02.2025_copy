@@ -3,13 +3,13 @@
     import { goto } from '$app/navigation';
     import { menuItems } from "$lib/data/menu-items";
     import MenuCategory from "$lib/components/MenuCategory.svelte";
+    import EditableOrderItem from "$lib/components/EditableOrderItem.svelte";
     import { browser } from "$app/environment";
-    import { cartItems, getTotal, getItemCount, removeFromCart, updateQuantity, formatCustomizations } from "$lib/stores/cart";
+    import { cartItems, formatDiningOption, formatCustomizations, isCustomizableItem } from "$lib/stores/cart";
     import { slide } from 'svelte/transition';
     import CustomizationModal from "$lib/components/CustomizationModal.svelte";
-    import { formatDiningOption, findOriginalItemPrice, calculateCustomizationCost, isCustomizableItem } from "$lib/utils";
-    
-
+    import { findOriginalItemPrice, calculateCustomizationCost } from "$lib/utils";
+    import { incrementItem, decrementItem, getTotal, getItemCount, addItem } from "$lib/dom-fix";
     
     // State variables
     let isArrowAnimating = $state(false);
@@ -24,7 +24,7 @@
     let showCustomizationModal = $state(false);
     let originalItemBasePrice = $state(0);
     
-    // Derived values
+    // Derived value for active menu category
     const activeMenuCategory = $derived(menuItems.find(cat => cat.id === activeCategory));
     
     // Promotional slides
@@ -45,20 +45,6 @@
             description: "Free dessert with any large combo"
         }
     ];
-
-    // Add this effect to your script section
-$effect(() => {
-    // This effect will run every time cartItems changes
-    // Force recalculation of derived values
-    const totalItemCount = cartItems.reduce((count, item) => count + item.quantity, 0);
-    const totalPriceValue = cartItems.reduce((total, item) => total + (item.price * item.quantity), 0).toFixed(2);
-    
-    // If we were using variables from elsewhere, we'd update them here
-    // This effect ensures reactivity happens even if you're not using derived values
-    
-    // You could also trigger additional logic here if needed
-    console.log(`Cart updated: ${totalItemCount} items, $${totalPriceValue}`);
-});
     
     // Initialize component
     $effect(() => {
@@ -95,16 +81,34 @@ $effect(() => {
     }
     
     function toggleOrderSummary(): void {
-        isOrderSummaryOpen = !isOrderSummaryOpen;
+    // Don't open the panel if cart is empty
+    if (cartItems.length === 0 && !isOrderSummaryOpen) {
+        return;
     }
     
- 
-    function restartOrder(): void {
-        // Clear cart
-        cartItems.length = 0;
-        activeCategory = menuItems[0]?.id || 0;
-        isOrderSummaryOpen = false;
-    } 
+    isOrderSummaryOpen = !isOrderSummaryOpen;
+}
+    
+function restartOrder(): void {
+    // Clear cart
+    cartItems.length = 0;
+    activeCategory = menuItems[0]?.id || 0;
+    isOrderSummaryOpen = false;
+    
+    // Update DOM elements after cart change
+    setTimeout(() => {
+        const totalElements = document.querySelectorAll('[data-cart-total]');
+        const countElements = document.querySelectorAll('[data-cart-count]');
+        
+        totalElements.forEach(el => {
+            el.textContent = '$0.00';
+        });
+        
+        countElements.forEach(el => {
+            el.textContent = '0';
+        });
+    }, 0);
+}
     
     function changeCategory(categoryId: number): void {
         activeCategory = categoryId;
@@ -116,6 +120,28 @@ $effect(() => {
         }
     }
     
+    // Handle edit request from order item
+    function handleEdit(item: any, index: number): void {
+        // Only proceed if we're not already showing the modal
+        if (!showCustomizationModal) {
+            // Store the original base price before editing
+            originalItemBasePrice = findOriginalItemPrice(item.id);
+            
+            // Make a deep copy of the item to edit
+            const itemCopy = JSON.parse(JSON.stringify(item));
+            
+            // If we have the original item, reset the price to base price
+            if (originalItemBasePrice > 0) {
+                // Set the itemCopy price back to the original catalog price
+                itemCopy.price = originalItemBasePrice;
+            }
+            
+            // Now assign to editingItem after all modifications
+            editingItem = itemCopy;
+            editingItemIndex = index;
+            showCustomizationModal = true;
+        }
+    }
   
     // Handle saving customizations
     function handleSaveCustomization(event: CustomEvent): void {
@@ -127,19 +153,21 @@ $effect(() => {
             const extraCost = calculateCustomizationCost(customizations);
             const finalPrice = basePrice + extraCost;
             
-            // Update the cart with customized item
-            // Create a modified copy of the original item
-            const itemToUpdate = {
+            // Update the cart item
+            cartItems[editingItemIndex] = {
                 ...customizedItem,
                 price: finalPrice,
                 quantity: cartItems[editingItemIndex].quantity,
-            };
-            
-            // Update the item in the cart array
-            cartItems[editingItemIndex] = {
-                ...itemToUpdate,
                 customizations
             };
+            
+            // Update DOM after cart changes
+            setTimeout(() => {
+                const totalElements = document.querySelectorAll('[data-cart-total]');
+                totalElements.forEach(el => {
+                    el.textContent = `$${getTotal(cartItems)}`;
+                });
+            }, 0);
         }
         
         // Reset editing state and close modal
@@ -313,7 +341,7 @@ $effect(() => {
   <div class="fixed bottom-0 left-0 right-0 z-20">
     <!-- Collapsible Order Panel with Editable Order Items -->
     {#if isOrderSummaryOpen && cartItems.length > 0}
-        <div class="bg-white rounded-t-3xl shadow-lg p-6" transition:slide={{ duration: 300 }}>
+    <div class="bg-white rounded-t-3xl shadow-lg p-6 order-panel" transition:slide={{ duration: 300 }}>
             <div class="flex justify-between items-center mb-4">
                 <div class="flex flex-col">
                     <h2 class="text-3xl font-bold">My Order</h2>
@@ -326,88 +354,18 @@ $effect(() => {
                 </div>
             </div>
             
- <!-- Order Items List -->
-<div class="mb-6 max-h-64 overflow-y-auto">
-    {#each cartItems as item, i}
-        <div class="flex items-center py-4 border-b border-gray-200 last:border-b-0">
-            <img src={item.image || "/images/placeholder-food.png"} 
-                alt={item.name} 
-                class="w-16 h-16 object-cover rounded-lg shadow-sm mr-4" />
-            
-            <div class="flex-grow">
-                <h3 class="font-bold">{item.name}</h3>
-                <p class="text-sm text-orange-600">${item.price.toFixed(2)} each</p>
-                
-                <!-- Show customizations if any -->
-                {#if item.customizations && item.customizations.length > 0}
-                    <p class="text-sm mt-1 text-gray-600 line-clamp-2">
-                        {formatCustomizations(item.customizations)}
-                    </p>
-                {/if}
-                
-              <!-- Edit button if item is customizable -->
-{#if isCustomizableItem(item.id)}
-<button 
-    class="text-blue-600 hover:text-blue-800 text-sm font-semibold mt-1"
-    onclick={() => {
-        // Directly call the edit logic instead of trying to create a custom event
-        if (!showCustomizationModal) {
-            originalItemBasePrice = findOriginalItemPrice(item.id);
-            
-            // Make a deep copy of the item to edit
-            const itemCopy = JSON.parse(JSON.stringify(item));
-            
-            // If we have the original item, reset the price to base price
-            if (originalItemBasePrice > 0) {
-                // Set the itemCopy price back to the original catalog price
-                itemCopy.price = originalItemBasePrice;
-            }
-            
-            // Now assign to editingItem after all modifications
-            editingItem = itemCopy;
-            editingItemIndex = i;
-            showCustomizationModal = true;
-        }
-    }}
->
-    Edit customization
-</button>
-{/if}
+            <!-- Order Items - using EditableOrderItem component with direct handler functions -->
+            <div class="mb-6 max-h-64 overflow-y-auto">
+                {#each cartItems as item, i (i)}
+                    <EditableOrderItem 
+                        item={item} 
+                        index={i}
+                        on:increase={() => incrementItem(cartItems, i)}
+                        on:decrease={() => decrementItem(cartItems, i)}
+                        on:edit={() => handleEdit(item, i)}
+                    />
+                {/each}
             </div>
-            
-            <div class="flex flex-col items-center ml-4">
-               <!-- Replace your quantity buttons with this improved version -->
-
-<div class="flex items-center space-x-2 border border-gray-300 rounded-lg overflow-hidden">
-    <button 
-        class="px-2 py-1 bg-gray-100 hover:bg-gray-200 transition-colors"
-        onclick={() => {
-            if (item.quantity > 1) {
-                updateQuantity(item.id, item.quantity - 1, i);
-            } else {
-                removeFromCart(item.id, i);
-            }
-        }}
-        aria-label="Decrease quantity"
-    >-</button>
-    
-    <span class="px-2 font-medium">{item.quantity}</span>
-    
-    <button 
-        class="px-2 py-1 bg-gray-100 hover:bg-gray-200 transition-colors"
-        onclick={() => {
-            updateQuantity(item.id, item.quantity + 1, i);
-        }}
-        aria-label="Increase quantity"
-    >+</button>
-</div>
-                <div class="text-sm font-bold mt-2">
-                    ${(item.price * item.quantity).toFixed(2)}
-                </div>
-            </div>
-        </div>
-    {/each}
-</div>
             
             <!-- Checkout Actions -->
             <div class="flex items-center justify-between pt-4 border-t border-gray-200">
@@ -415,14 +373,13 @@ $effect(() => {
                     class="px-6 py-3 bg-orange-100 text-orange-500 rounded-full font-medium" 
                     onclick={restartOrder}
                 >
-                    Clear Order
+                    Restart Menu
                 </button>
                 
-               <!-- Find this in the Checkout Actions section and replace it -->
-               <div class="flex items-center">
-                <span class="mr-2 font-bold">Total:</span>
-                <span class="text-xl font-bold">${getTotal()}</span>
-            </div>
+                <div class="flex items-center">
+                    <span class="mr-2 font-bold">Total:</span>
+                    <span class="text-xl font-bold" data-cart-total>$ {getTotal(cartItems)}</span>
+                </div>
             </div>
         </div>
     {/if}
@@ -431,12 +388,11 @@ $effect(() => {
     <div class="bg-base-300 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.2)] p-4">
         <div class="container mx-auto flex justify-between items-center">
             <div class="flex-1">
-                <!-- Find this section in the Fixed Payment Bar at Bottom and replace it -->
                 <div class="flex items-center">
                     <span class="mr-2 font-bold">Items:</span>
-                    <span class="badge badge-primary badge-lg">{getItemCount()}</span>
+                    <span class="badge badge-primary badge-lg" data-cart-count>{getItemCount(cartItems)}</span>
                     <span class="mx-4 font-bold">Total:</span>
-                    <span class="text-xl font-bold">${getTotal()}</span>
+                    <span class="text-xl font-bold" data-cart-total>${getTotal(cartItems)}</span>
                 </div>
             </div>
             
